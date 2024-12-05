@@ -17,7 +17,6 @@ void setup() {
   lcd.begin(16, 2);
   lcd.print("Motor Control");
 
-  // Motor pins setup
   pinMode(IN1, OUTPUT);
   pinMode(IN2, OUTPUT);
 
