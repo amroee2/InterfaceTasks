@@ -1,0 +1,1082 @@
+#include <Wire.h>
+#include "I2Cdev.h"
+#include "MPU6050.h"
+
+MPU6050 mpu;
+
+// Motor Pins
+const int motorPin1 = 7;
+const int motorPin2 = 8;
+const int enablePin = 9;
+const int encoderPinA = 2;
+const int encoderPinB = 3;
+
+// Motor Position Tracking
+volatile int encoderCount = 0;
+const float degreesPerPulse = 1.8; // Encoder resolution
+float motorPosition = 0;   // Motor current angle
+float targetPosition = 0;  // Target angle from MPU yaw
+
+// MPU6050 Data
+int16_t ax, ay, az, gx, gy, gz;
+float gyroYawRate = 0, filteredYaw = 0;
+const float alpha = 0.98;  // Complementary filter
+const float dt = 0.01;     // Loop time (10ms)
+
+// PID Constants
+float Kp = 3.0, Ki = 0.01, Kd = 0.5;
+float integral = 0, lastError = 0;
+const float integralLimit = 50;
+
+void setup() {
+  // Motor Setup
+  pinMode(motorPin1, OUTPUT);
+  pinMode(motorPin2, OUTPUT);
+  pinMode(enablePin, OUTPUT);
+  pinMode(encoderPinA, INPUT);
+  pinMode(encoderPinB, INPUT);
+  attachInterrupt(digitalPinToInterrupt(encoderPinA), countEncoder, RISING);
+
+  // MPU6050 Setup
+  Wire.begin();
+  Serial.begin(9600);
+  mpu.initialize();
+  if (mpu.testConnection()) Serial.println("MPU6050 connected!");
+  else {
+    Serial.println("MPU6050 connection failed!");
+    while (1);
+  }
+}
+
+void loop() {
+  // Read MPU6050 Data (Yaw)
+  mpu.getMotion6(&ax, &ay, &az, &gx, &gy, &gz);
+  gyroYawRate = gz / 131.0; // Gyro rate in deg/s
+
+  // Apply Complementary Filter for Yaw
+  filteredYaw += gyroYawRate * dt;
+  filteredYaw = constrain(filteredYaw, 0, 360); // Limit yaw between 0-360
+
+  // Set Target Position to Filtered Yaw
+  targetPosition = filteredYaw;
+
+  // Move Motor to Target Position
+  moveMotorToTarget(targetPosition);
+
+  // Print Data
+  Serial.print("Yaw: ");
+  Serial.print(filteredYaw);
+  Serial.print(" | Motor Position: ");
+  Serial.println(motorPosition);
+
+  delay(10);
+}
+
+// Interrupt: Count Encoder Pulses
+void countEncoder() {
+  if (digitalRead(encoderPinB) == LOW) encoderCount++;
+  else encoderCount--;
+  motorPosition = encoderCount * degreesPerPulse;
+}
+
+// PID Control for Motor Movement
+void moveMotorToTarget(float targetAngle) {
+  float error = targetAngle - motorPosition;
+
+  // PID Calculation
+  integral += error * dt;
+  integral = constrain(integral, -integralLimit, integralLimit);
+  float derivative = (error - lastError) / dt;
+  float output = Kp * error + Ki * integral + Kd * derivative;
+
+  // Smooth Speed Mapping
+  output = constrain(output, -150, 150);
+  int motorSpeed = map(abs(output), 0, 150, 80, 255);
+
+  // Motor Direction and Speed Control
+  if (output > 0) motorForward(motorSpeed);
+  else if (output < 0) motorBackward(motorSpeed);
+  else motorStop();
+
+  lastError = error;
+}
+
+void motorForward(int speed) {
+  digitalWrite(motorPin1, HIGH);
+  digitalWrite(motorPin2, LOW);
+  analogWrite(enablePin, speed);
+}
+
+void motorBackward(int speed) {
+  digitalWrite(motorPin1, LOW);
+  digitalWrite(motorPin2, HIGH);
+  analogWrite(enablePin, speed);
+}
+
+void motorStop() {
+  digitalWrite(motorPin1, LOW);
+  digitalWrite(motorPin2, LOW);
+  analogWrite(enablePin, 0);
+}
+
+
+
+----------------
+
+#include <Wire.h>
+#include "I2Cdev.h"
+#include "MPU6050.h"
+
+MPU6050 mpu;
+
+// Motor Pins
+const int motorPin1 = 7;
+const int motorPin2 = 8;
+const int enablePin = 9;
+const int encoderPinA = 2;
+const int encoderPinB = 3;
+
+// Motor Position Tracking
+volatile int encoderCount = 0;
+const float degreesPerPulse = 1.8; // Encoder resolution
+float motorPosition = 0;   // Motor current angle
+float targetPosition = 0;  // Target angle from MPU yaw
+
+// MPU6050 Data
+int16_t ax, ay, az, gx, gy, gz;
+float gyroYawRate = 0, filteredYaw = 0;
+const float alpha = 0.98;  // Complementary filter
+const float dt = 0.01;     // Loop time (10ms)
+
+// PID Constants
+float Kp = 3.0, Ki = 0.01, Kd = 0.5;
+float integral = 0, lastError = 0;
+const float integralLimit = 50;
+
+void setup() {
+  // Motor Setup
+  pinMode(motorPin1, OUTPUT);
+  pinMode(motorPin2, OUTPUT);
+  pinMode(enablePin, OUTPUT);
+  pinMode(encoderPinA, INPUT);
+  pinMode(encoderPinB, INPUT);
+  attachInterrupt(digitalPinToInterrupt(encoderPinA), countEncoder, RISING);
+
+  // MPU6050 Setup
+  Wire.begin();
+  Serial.begin(9600);
+  mpu.initialize();
+  if (mpu.testConnection()) Serial.println("MPU6050 connected!");
+  else {
+    Serial.println("MPU6050 connection failed!");
+    while (1);
+  }
+}
+
+void loop() {
+  // Read MPU6050 Data (Yaw)
+  mpu.getMotion6(&ax, &ay, &az, &gx, &gy, &gz);
+  gyroYawRate = gz / 131.0; // Gyro rate in deg/s
+
+  // Apply Complementary Filter for Yaw
+  filteredYaw += gyroYawRate * dt;
+  filteredYaw = constrain(filteredYaw, 0, 360); // Limit yaw between 0-360
+
+  // Set Target Position to Filtered Yaw
+  targetPosition = filteredYaw;
+
+  // Move Motor to Target Position
+  moveMotorToTarget(targetPosition);
+
+  // Print Data
+  Serial.print("Yaw: ");
+  Serial.print(filteredYaw);
+  Serial.print(" | Motor Position: ");
+  Serial.println(motorPosition);
+
+  delay(10);
+}
+
+// Interrupt: Count Encoder Pulses
+void countEncoder() {
+  if (digitalRead(encoderPinB) == LOW) encoderCount++;
+  else encoderCount--;
+  motorPosition = encoderCount * degreesPerPulse;
+}
+
+// PID Control for Motor Movement
+void moveMotorToTarget(float targetAngle) {
+  float error = targetAngle - motorPosition;
+
+  // PID Calculation
+  integral += error * dt;
+  integral = constrain(integral, -integralLimit, integralLimit);
+  float derivative = (error - lastError) / dt;
+  float output = Kp * error + Ki * integral + Kd * derivative;
+
+  // Smooth Speed Mapping
+  output = constrain(output, -150, 150);
+  int motorSpeed = map(abs(output), 0, 150, 80, 255);
+
+  // Motor Direction and Speed Control
+  if (output > 0) motorForward(motorSpeed);
+  else if (output < 0) motorBackward(motorSpeed);
+  else motorStop();
+
+  lastError = error;
+}
+
+void motorForward(int speed) {
+  digitalWrite(motorPin1, HIGH);
+  digitalWrite(motorPin2, LOW);
+  analogWrite(enablePin, speed);
+}
+
+void motorBackward(int speed) {
+  digitalWrite(motorPin1, LOW);
+  digitalWrite(motorPin2, HIGH);
+  analogWrite(enablePin, speed);
+}
+
+void motorStop() {
+  digitalWrite(motorPin1, LOW);
+  digitalWrite(motorPin2, LOW);
+  analogWrite(enablePin, 0);
+}
+
+
+------------
+
+#include <Wire.h>
+#include "I2Cdev.h"
+#include "MPU6050.h"
+
+MPU6050 mpu;
+
+// Motor Pins
+const int motorPin1 = 7;
+const int motorPin2 = 8;
+const int enablePin = 9;
+const int encoderPinA = 2;
+const int encoderPinB = 3;
+
+// Motor Position Tracking
+volatile int encoderCount = 0;
+const float degreesPerPulse = 1.8; // Encoder resolution
+float motorPosition = 0;
+float targetPosition = 0;
+
+// MPU6050 Data
+int16_t ax, ay, az, gx, gy, gz;
+float accelAngleX, gyroRateX, filteredAngleX = 0;
+const float alpha = 0.98;
+const float dt = 0.01;
+
+// PID Constants
+float Kp = 2.5, Ki = 0.01, Kd = 0.3;
+float integral = 0, lastError = 0;
+const float integralLimit = 50;  // Prevent integral windup
+
+void setup() {
+  pinMode(motorPin1, OUTPUT);
+  pinMode(motorPin2, OUTPUT);
+  pinMode(enablePin, OUTPUT);
+  pinMode(encoderPinA, INPUT);
+  pinMode(encoderPinB, INPUT);
+  attachInterrupt(digitalPinToInterrupt(encoderPinA), countEncoder, RISING);
+
+  Wire.begin();
+  Serial.begin(9600);
+  mpu.initialize();
+
+  if (mpu.testConnection()) {
+    Serial.println("MPU6050 connected!");
+  } else {
+    Serial.println("MPU6050 connection failed!");
+    while (1);
+  }
+
+  mpu.getMotion6(&ax, &ay, &az, &gx, &gy, &gz);
+  accelAngleX = atan2(ay, az) * 180 / PI;
+  filteredAngleX = accelAngleX;
+  encoderCount = 0;
+  motorPosition = 0;
+}
+
+void loop() {
+  // MPU6050 Sensor Data
+  mpu.getMotion6(&ax, &ay, &az, &gx, &gy, &gz);
+  accelAngleX = atan2(ay, az) * 180 / PI;
+  gyroRateX = gx / 131.0;
+  filteredAngleX = alpha * (filteredAngleX + gyroRateX * dt) + (1 - alpha) * accelAngleX;
+
+  // Target Position
+  targetPosition = constrain(filteredAngleX, 0, 360);
+
+  // Move Motor with Improved PID
+  moveMotorToTarget(targetPosition);
+
+  // Print Data
+  Serial.print("Target Angle: ");
+  Serial.print(targetPosition);
+  Serial.print(" | Motor Angle: ");
+  Serial.println(motorPosition);
+
+  delay(10);
+}
+
+void countEncoder() {
+  // Update Encoder Count
+  if (digitalRead(encoderPinB) == LOW) {
+    encoderCount++;
+  } else {
+    encoderCount--;
+  }
+  motorPosition = encoderCount * degreesPerPulse;
+}
+
+void moveMotorToTarget(float targetAngle) {
+  float error = targetAngle - motorPosition;
+
+  // PID Calculation
+  integral += error * dt;
+  integral = constrain(integral, -integralLimit, integralLimit);  // Prevent windup
+  float derivative = (error - lastError) / dt;
+  float output = Kp * error + Ki * integral + Kd * derivative;
+
+  // Smooth Speed Adjustment
+  output = constrain(output, -150, 150); // Limit speed range
+  int motorSpeed = map(abs(output), 0, 150, 80, 255); // Smooth speed ramp (min=80, max=255)
+
+  // Motor Control
+  if (output > 0) {
+    motorForward(motorSpeed);
+  } else if (output < 0) {
+    motorBackward(motorSpeed);
+  } else {
+    motorStop();
+  }
+
+  lastError = error;  // Update last error
+}
+
+void motorForward(int speed) {
+  digitalWrite(motorPin1, HIGH);
+  digitalWrite(motorPin2, LOW);
+  analogWrite(enablePin, speed);
+}
+
+void motorBackward(int speed) {
+  digitalWrite(motorPin1, LOW);
+  digitalWrite(motorPin2, HIGH);
+  analogWrite(enablePin, speed);
+}
+
+void motorStop() {
+  digitalWrite(motorPin1, LOW);
+  digitalWrite(motorPin2, LOW);
+  analogWrite(enablePin, 0);
+}
+
+
+
+-----------
+
+#include <Wire.h>
+#include "I2Cdev.h"
+#include "MPU6050.h"
+
+MPU6050 mpu;
+
+// Motor Pins
+const int motorPin1 = 7;
+const int motorPin2 = 8;
+const int enablePin = 9;
+const int encoderPinA = 2;
+const int encoderPinB = 3;
+
+// Motor Position Tracking
+volatile int encoderCount = 0;
+const float degreesPerPulse = 1.8; // Encoder resolution (update this value correctly)
+float motorPosition = 0;
+float targetPosition = 0;
+
+// MPU6050 Data
+int16_t ax, ay, az, gx, gy, gz;
+float accelAngleX, gyroRateX, filteredAngleX = 0;
+const float alpha = 0.98;
+const float dt = 0.01;  // Loop time (10ms)
+
+// PID Constants
+float Kp = 3.0, Ki = 0.02, Kd = 0.5;
+float integral = 0, lastError = 0;
+
+void setup() {
+  // Motor and Encoder
+  pinMode(motorPin1, OUTPUT);
+  pinMode(motorPin2, OUTPUT);
+  pinMode(enablePin, OUTPUT);
+  pinMode(encoderPinA, INPUT);
+  pinMode(encoderPinB, INPUT);
+  attachInterrupt(digitalPinToInterrupt(encoderPinA), countEncoder, RISING);
+
+  // MPU6050 Initialization
+  Wire.begin();
+  Serial.begin(9600);
+  mpu.initialize();
+
+  if (mpu.testConnection()) {
+    Serial.println("MPU6050 connected!");
+  } else {
+    Serial.println("MPU6050 connection failed!");
+    while (1);
+  }
+
+  // Set MPU6050 and Motor Position to Zero
+  mpu.getMotion6(&ax, &ay, &az, &gx, &gy, &gz);
+  accelAngleX = atan2(ay, az) * 180 / PI;
+  filteredAngleX = accelAngleX;
+  encoderCount = 0; // Reset encoder
+  motorPosition = 0; // Zero motor position
+}
+
+void loop() {
+  // Read MPU6050
+  mpu.getMotion6(&ax, &ay, &az, &gx, &gy, &gz);
+  accelAngleX = atan2(ay, az) * 180 / PI;
+  gyroRateX = gx / 131.0;
+  filteredAngleX = alpha * (filteredAngleX + gyroRateX * dt) + (1 - alpha) * accelAngleX;
+
+  // Set Target Position
+  targetPosition = constrain(filteredAngleX, 0, 360);
+
+  // Move Motor with PID
+  moveMotorToTarget(targetPosition);
+
+  // Print Data
+  Serial.print("MPU Angle: ");
+  Serial.print(filteredAngleX);
+  Serial.print(" | Motor Angle: ");
+  Serial.println(motorPosition);
+
+  delay(10);
+}
+
+void countEncoder() {
+  // Increment or decrement encoder pulses
+  if (digitalRead(encoderPinB) == LOW) {
+    encoderCount++;
+  } else {
+    encoderCount--;
+  }
+  motorPosition = encoderCount * degreesPerPulse; // Convert pulses to degrees
+}
+
+void moveMotorToTarget(float targetAngle) {
+  float error = targetAngle - motorPosition;
+
+  // PID Calculation
+  integral += error * dt;
+  float derivative = (error - lastError) / dt;
+  float output = Kp * error + Ki * integral + Kd * derivative;
+
+  output = constrain(output, -200, 200); // Limit motor speed range
+
+  // Move Motor
+  if (output > 0) {
+    motorForward(output);
+  } else if (output < 0) {
+    motorBackward(-output);
+  } else {
+    motorStop();
+  }
+
+  lastError = error;
+}
+
+void motorForward(int speed) {
+  digitalWrite(motorPin1, HIGH);
+  digitalWrite(motorPin2, LOW);
+  analogWrite(enablePin, speed);
+}
+
+void motorBackward(int speed) {
+  digitalWrite(motorPin1, LOW);
+  digitalWrite(motorPin2, HIGH);
+  analogWrite(enablePin, speed);
+}
+
+void motorStop() {
+  digitalWrite(motorPin1, LOW);
+  digitalWrite(motorPin2, LOW);
+  analogWrite(enablePin, 0);
+}
+
+
+
+-------
+
+
+#include <Wire.h>
+#include "I2Cdev.h"
+#include "MPU6050.h"
+
+// Motor and Encoder Pins
+const int motorPin1 = 7;
+const int motorPin2 = 8;
+const int enablePin = 9; // PWM for motor speed
+const int encoderPinA = 2;  // Interrupt pin
+const int encoderPinB = 3;
+
+// MPU6050
+MPU6050 mpu;
+
+// Complementary Filter
+const float alpha = 0.98;
+const float dt = 0.01;  // Loop time (10ms)
+
+// MPU6050 Data
+int16_t ax, ay, az, gx, gy, gz;
+float accelAngleX, gyroRateX, filteredAngleX = 0;
+
+// Encoder and Motor Data
+volatile int encoderCount = 0;
+const float degreesPerPulse = 1.8; // Encoder resolution
+float motorPosition = 0;
+float targetPosition = 0;
+
+// PID Control Constants
+float Kp = 5.0;  // Proportional gain
+float Ki = 0.01; // Integral gain
+float Kd = 1.0;  // Derivative gain
+float integral = 0, lastError = 0;
+
+void setup() {
+  // Motor Pins
+  pinMode(motorPin1, OUTPUT);
+  pinMode(motorPin2, OUTPUT);
+  pinMode(enablePin, OUTPUT);
+
+  // Encoder Pins
+  pinMode(encoderPinA, INPUT);
+  pinMode(encoderPinB, INPUT);
+  attachInterrupt(digitalPinToInterrupt(encoderPinA), countEncoder, RISING);
+
+  // MPU6050 Initialization
+  Wire.begin();
+  Serial.begin(9600);
+  mpu.initialize();
+
+  if (mpu.testConnection()) {
+    Serial.println("MPU6050 connected!");
+  } else {
+    Serial.println("MPU6050 connection failed!");
+    while (1);
+  }
+
+  // Initialize Angle
+  mpu.getMotion6(&ax, &ay, &az, &gx, &gy, &gz);
+  accelAngleX = atan2(ay, az) * 180 / PI;
+  filteredAngleX = accelAngleX;
+}
+
+void loop() {
+  // MPU6050 Data
+  mpu.getMotion6(&ax, &ay, &az, &gx, &gy, &gz);
+  accelAngleX = atan2(ay, az) * 180 / PI;
+  gyroRateX = gx / 131.0;
+
+  // Complementary Filter
+  filteredAngleX = alpha * (filteredAngleX + gyroRateX * dt) + (1 - alpha) * accelAngleX;
+
+  // Calculate Target Position
+  targetPosition = constrain(filteredAngleX, 0, 360);
+
+  // Move Motor with PID Control
+  moveMotorWithPID(targetPosition);
+
+  // Display Data
+  Serial.print("Target Angle: ");
+  Serial.print(targetPosition);
+  Serial.print(" | Motor Position: ");
+  Serial.println(motorPosition);
+
+  delay(10);
+}
+
+void countEncoder() {
+  // Increment or decrement encoder pulses
+  if (digitalRead(encoderPinB) == LOW) {
+    encoderCount++;
+  } else {
+    encoderCount--;
+  }
+  motorPosition = encoderCount * degreesPerPulse; // Convert pulses to degrees
+}
+
+void moveMotorWithPID(float targetAngle) {
+  float error = targetAngle - motorPosition;  // Calculate error
+
+  // PID Calculations
+  integral += error * dt;                 // Integral term
+  float derivative = (error - lastError) / dt; // Derivative term
+  float output = Kp * error + Ki * integral + Kd * derivative;
+
+  output = constrain(output, -255, 255);  // Limit output to motor range
+
+  // Motor Control
+  if (output > 0) {
+    motorForward(output);
+  } else if (output < 0) {
+    motorBackward(-output);
+  } else {
+    motorStop();
+  }
+
+  lastError = error;  // Save error for next iteration
+}
+
+void motorForward(int speed) {
+  digitalWrite(motorPin1, HIGH);
+  digitalWrite(motorPin2, LOW);
+  analogWrite(enablePin, speed);
+}
+
+void motorBackward(int speed) {
+  digitalWrite(motorPin1, LOW);
+  digitalWrite(motorPin2, HIGH);
+  analogWrite(enablePin, speed);
+}
+
+void motorStop() {
+  digitalWrite(motorPin1, LOW);
+  digitalWrite(motorPin2, LOW);
+  analogWrite(enablePin, 0);
+}
+
+
+
+-----------
+
+
+#include <Wire.h>
+#include "I2Cdev.h"
+#include "MPU6050.h"
+
+// Motor and Encoder Pins
+const int motorPin1 = 7;
+const int motorPin2 = 8;
+const int enablePin = 9; // PWM for motor speed
+const int encoderPinA = 2;  // Interrupt pin
+const int encoderPinB = 3;
+
+// MPU6050
+MPU6050 mpu;
+
+// Constants for complementary filter
+const float alpha = 0.98;
+const float dt = 0.01; // Loop time (10ms)
+
+// MPU6050 Data
+int16_t ax, ay, az, gx, gy, gz;
+float accelAngleX, gyroRateX, filteredAngleX = 0;
+
+// Motor Position
+volatile int encoderCount = 0;
+const float degreesPerPulse = 1.8; // Adjust based on motor encoder resolution
+float motorPosition = 0;  // Current motor angle
+float targetPosition = 0; // Desired position from MPU angle
+
+void setup() {
+  // Motor pins
+  pinMode(motorPin1, OUTPUT);
+  pinMode(motorPin2, OUTPUT);
+  pinMode(enablePin, OUTPUT);
+
+  // Encoder pins
+  pinMode(encoderPinA, INPUT);
+  pinMode(encoderPinB, INPUT);
+  attachInterrupt(digitalPinToInterrupt(encoderPinA), countEncoder, RISING);
+
+  // MPU6050 Initialization
+  Wire.begin();
+  Serial.begin(9600);
+  mpu.initialize();
+
+  if (mpu.testConnection()) {
+    Serial.println("MPU6050 connected!");
+  } else {
+    Serial.println("MPU6050 connection failed!");
+    while (1);
+  }
+
+  // Initialize MPU angle
+  mpu.getMotion6(&ax, &ay, &az, &gx, &gy, &gz);
+  accelAngleX = atan2(ay, az) * 180 / PI;
+  filteredAngleX = accelAngleX;
+}
+
+void loop() {
+  // Read MPU6050 sensor data
+  mpu.getMotion6(&ax, &ay, &az, &gx, &gy, &gz);
+  accelAngleX = atan2(ay, az) * 180 / PI;
+  gyroRateX = gx / 131.0;
+
+  // Complementary Filter
+  filteredAngleX = alpha * (filteredAngleX + gyroRateX * dt) + (1 - alpha) * accelAngleX;
+
+  // Calculate target position based on filtered angle
+  targetPosition = constrain(filteredAngleX, 0, 360);
+
+  // Move motor to target position
+  moveMotorToPosition(targetPosition);
+
+  // Display angles
+  Serial.print("Filtered Angle X: ");
+  Serial.print(filteredAngleX);
+  Serial.print(" | Motor Position: ");
+  Serial.println(motorPosition);
+
+  delay(10);
+}
+
+void countEncoder() {
+  // Increment or decrement encoder pulses
+  if (digitalRead(encoderPinB) == LOW) {
+    encoderCount++;
+  } else {
+    encoderCount--;
+  }
+  motorPosition = encoderCount * degreesPerPulse; // Convert pulses to degrees
+}
+
+void moveMotorToPosition(float targetAngle) {
+  float error = targetAngle - motorPosition;
+
+  // Move motor if there is a significant error
+  if (abs(error) > 1.0) { // Allow 1-degree tolerance
+    if (error > 0) {
+      motorForward();
+    } else {
+      motorBackward();
+    }
+  } else {
+    motorStop();
+  }
+}
+
+void motorForward() {
+  digitalWrite(motorPin1, HIGH);
+  digitalWrite(motorPin2, LOW);
+  analogWrite(enablePin, 150); // Adjust motor speed
+}
+
+void motorBackward() {
+  digitalWrite(motorPin1, LOW);
+  digitalWrite(motorPin2, HIGH);
+  analogWrite(enablePin, 150);
+}
+
+void motorStop() {
+  digitalWrite(motorPin1, LOW);
+  digitalWrite(motorPin2, LOW);
+  analogWrite(enablePin, 0);
+}
+
+
+
+--------
+
+#include <Wire.h>
+#include "I2Cdev.h"
+#include "MPU6050.h"
+
+MPU6050 mpu;
+
+// Constants for complementary filter
+const float alpha = 0.98;  // Weight for gyro data
+const float dt = 0.01;     // Loop time in seconds (10ms)
+
+// MPU6050 Data
+int16_t ax, ay, az, gx, gy, gz;
+float accelAngleX, gyroRateX, filteredAngleX = 0;
+
+void setup() {
+  Wire.begin();
+  Serial.begin(9600);
+  mpu.initialize();
+
+  // Check MPU6050 connection
+  if (mpu.testConnection()) {
+    Serial.println("MPU6050 connected!");
+  } else {
+    Serial.println("MPU6050 connection failed!");
+    while (1);
+  }
+
+  // Initialize angles from accelerometer
+  mpu.getMotion6(&ax, &ay, &az, &gx, &gy, &gz);
+  accelAngleX = atan2(ay, az) * 180 / PI;  // Initial angle from accelerometer
+  filteredAngleX = accelAngleX;
+}
+
+void loop() {
+  // Read MPU6050 sensor data
+  mpu.getMotion6(&ax, &ay, &az, &gx, &gy, &gz);
+
+  // Calculate angle from accelerometer
+  accelAngleX = atan2(ay, az) * 180 / PI;
+
+  // Calculate rate of rotation from gyroscope
+  gyroRateX = gx / 131.0;  // Convert gyro rate to deg/s (MPU6050 sensitivity)
+
+  // Complementary Filter: Combine accelerometer and gyroscope data
+  filteredAngleX = alpha * (filteredAngleX + gyroRateX * dt) + (1 - alpha) * accelAngleX;
+
+  // Display the filtered angle
+  Serial.print("Filtered Angle X: ");
+  Serial.println(filteredAngleX);
+
+  delay(10);  // 10ms loop delay
+}
+
+
+
+---------
+
+#include <Wire.h>
+#include "I2Cdev.h"
+#include "MPU6050.h"
+
+// Motor and Encoder Pins
+const int motorPin1 = 7;
+const int motorPin2 = 8;
+const int enablePin = 9; // PWM for motor speed
+const int encoderPinA = 2;  // Interrupt pin
+const int encoderPinB = 3;
+
+// MPU6050
+MPU6050 mpu;
+float currentAngle = 0;   // Current MPU angle
+float previousAngle = 0;  // Last angle reading
+volatile int encoderCount = 0; // Encoder pulse count
+float motorPosition = 0;  // Motor angle position
+
+// Constants
+const float degreesPerPulse = 1.8; // Adjust based on encoder resolution
+const int maxAngle = 360;          // Motor range limit
+
+void setup() {
+  // Motor Pins
+  pinMode(motorPin1, OUTPUT);
+  pinMode(motorPin2, OUTPUT);
+  pinMode(enablePin, OUTPUT);
+
+  // Encoder Pins
+  pinMode(encoderPinA, INPUT);
+  pinMode(encoderPinB, INPUT);
+  attachInterrupt(digitalPinToInterrupt(encoderPinA), countEncoder, RISING);
+
+  // MPU6050 Initialization
+  Wire.begin();
+  Serial.begin(9600);
+  mpu.initialize();
+
+  // Verify MPU6050 connection
+  if (mpu.testConnection()) {
+    Serial.println("MPU6050 connected!");
+  } else {
+    Serial.println("MPU6050 connection failed!");
+    while (1);
+  }
+
+  Serial.println("System ready...");
+}
+
+void loop() {
+  // Get MPU angle
+  int16_t ax, ay, az, gx, gy, gz;
+  mpu.getMotion6(&ax, &ay, &az, &gx, &gy, &gz);
+  
+  // Map gyro data to angle
+  currentAngle += (float)gx / 131.0 * 0.01; // Gyro sensitivity: 131 LSB/°/s, scale to 10ms loop
+  currentAngle = constrain(currentAngle, -360, 360); // Limit angle
+  
+  // Display the angle on the Serial Monitor
+  Serial.print("MPU Angle: ");
+  Serial.println(currentAngle);
+
+  // Calculate target position
+  float angleChange = currentAngle - previousAngle;
+  if (abs(angleChange) > 1) { // Ignore small noise
+    motorPosition += angleChange;
+    motorPosition = constrain(motorPosition, 0, maxAngle); // Limit 0-360
+    moveMotorToPosition();
+    previousAngle = currentAngle;
+  }
+
+  delay(10); // Small delay to stabilize readings
+}
+
+// Encoder counting function
+void countEncoder() {
+  if (digitalRead(encoderPinB) == LOW) {
+    encoderCount++;
+  } else {
+    encoderCount--;
+  }
+}
+
+// Move motor based on encoder feedback
+void moveMotorToPosition() {
+  int targetPulses = motorPosition / degreesPerPulse;
+  int currentPulses = encoderCount;
+
+  while (abs(targetPulses - currentPulses) > 1) { // Allow minor error
+    if (targetPulses > currentPulses) {
+      motorForward();
+    } else if (targetPulses < currentPulses) {
+      motorBackward();
+    }
+    currentPulses = encoderCount; // Update current pulses
+  }
+  motorStop();
+}
+
+// Motor control functions
+void motorForward() {
+  digitalWrite(motorPin1, HIGH);
+  digitalWrite(motorPin2, LOW);
+  analogWrite(enablePin, 150); // Adjust speed if needed
+}
+
+void motorBackward() {
+  digitalWrite(motorPin1, LOW);
+  digitalWrite(motorPin2, HIGH);
+  analogWrite(enablePin, 150); // Adjust speed if needed
+}
+
+void motorStop() {
+  digitalWrite(motorPin1, LOW);
+  digitalWrite(motorPin2, LOW);
+  analogWrite(enablePin, 0);
+}
+
+
+
+-----------
+#include <Wire.h>
+#include "I2Cdev.h"
+#include "MPU6050.h"
+
+// Motor and Encoder Pins
+const int motorPin1 = 7;
+const int motorPin2 = 8;
+const int enablePin = 9; // PWM for motor speed
+const int encoderPinA = 2;  // Interrupt pin
+const int encoderPinB = 3;
+
+// MPU6050
+MPU6050 mpu;
+float currentAngle = 0;   // Current MPU angle
+float previousAngle = 0;  // Last angle reading
+volatile int encoderCount = 0; // Encoder pulse count
+float motorPosition = 0;  // Motor angle position
+
+// Constants
+const float degreesPerPulse = 1.8; // Adjust based on encoder resolution
+const int maxAngle = 360;          // Motor range limit
+
+void setup() {
+  // Motor Pins
+  pinMode(motorPin1, OUTPUT);
+  pinMode(motorPin2, OUTPUT);
+  pinMode(enablePin, OUTPUT);
+
+  // Encoder Pins
+  pinMode(encoderPinA, INPUT);
+  pinMode(encoderPinB, INPUT);
+  attachInterrupt(digitalPinToInterrupt(encoderPinA), countEncoder, RISING);
+
+  // MPU6050 Initialization
+  Wire.begin();
+  Serial.begin(9600);
+  mpu.initialize();
+
+  // Verify MPU6050 connection
+  if (mpu.testConnection()) {
+    Serial.println("MPU6050 connected!");
+  } else {
+    Serial.println("MPU6050 connection failed!");
+    while (1);
+  }
+
+  Serial.println("System ready...");
+}
+
+void loop() {
+  // Get MPU angle
+  int16_t ax, ay, az, gx, gy, gz;
+  mpu.getMotion6(&ax, &ay, &az, &gx, &gy, &gz);
+  currentAngle = map(gx, -32768, 32767, -180, 180); // Map gyro data to angle
+  
+  float angleChange = currentAngle - previousAngle;
+
+  // Calculate target position
+  if (abs(angleChange) > 1) { // Ignore small noise
+    motorPosition += angleChange;
+    motorPosition = constrain(motorPosition, 0, maxAngle); // Limit 0-360
+    moveMotorToPosition();
+    previousAngle = currentAngle;
+  }
+}
+
+// Encoder counting function
+void countEncoder() {
+  if (digitalRead(encoderPinB) == LOW) {
+    encoderCount++;
+  } else {
+    encoderCount--;
+  }
+}
+
+// Move motor based on encoder feedback
+void moveMotorToPosition() {
+  int targetPulses = motorPosition / degreesPerPulse;
+  int currentPulses = encoderCount;
+
+  while (abs(targetPulses - currentPulses) > 1) { // Allow minor error
+    if (targetPulses > currentPulses) {
+      motorForward();
+    } else if (targetPulses < currentPulses) {
+      motorBackward();
+    }
+    currentPulses = encoderCount; // Update current pulses
+  }
+  motorStop();
+}
+
+// Motor control functions
+void motorForward() {
+  digitalWrite(motorPin1, HIGH);
+  digitalWrite(motorPin2, LOW);
+  analogWrite(enablePin, 150); // Adjust speed if needed
+}
+
+void motorBackward() {
+  digitalWrite(motorPin1, LOW);
+  digitalWrite(motorPin2, HIGH);
+  analogWrite(enablePin, 150); // Adjust speed if needed
+}
+
+void motorStop() {
+  digitalWrite(motorPin1, LOW);
+  digitalWrite(motorPin2, LOW);
+  analogWrite(enablePin, 0);
+}
+
+
+----------
+
+
+
