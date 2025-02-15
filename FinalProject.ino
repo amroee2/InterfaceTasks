@@ -1,6 +1,3 @@
-
-المحايد
-Razi Atyani
 #include <Wire.h>
 #include <MPU6050_tockn.h>
 #include <Adafruit_VL53L0X.h>
